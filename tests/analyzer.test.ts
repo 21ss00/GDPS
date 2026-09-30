@@ -38,3 +38,61 @@ test("candidate fields", () => {
   expect(c.confidence).toBeGreaterThan(0); expect(c.confidence).toBeLessThanOrEqual(1);
   expect(c.voicing).toBeUndefined();
 });
+
+// ---- chords (Task 6) ----
+import { cfg } from "../src/config";
+import { chordLibrary, voicingMidi } from "../src/voicings";
+import { strum } from "./signals";
+
+const CHORD_WINDOW = Math.floor(0.2 * SR);
+const LIB = new Map(chordLibrary().map((v) => [v.name, v]));
+const TEST_CHORDS = ["E", "A", "D", "G", "C", "Am", "Em", "Dm", "F@1", "B7", "Cmaj7", "Asus2"];
+const chordAudio = (name: string, snr?: number) => {
+  const x = strum(voicingMidi(LIB.get(name)!));
+  return (snr === undefined ? x : withNoise(x, snr)).subarray(0, CHORD_WINDOW);
+};
+
+test("chord root and quality are identified", () => {
+  for (const name of TEST_CHORDS) {
+    const c = analyze(chordAudio(name), SR);
+    expect(c[0]?.kind, name).toBe("chord");
+    const want = LIB.get(name)!, got = c[0].voicing!;
+    expect([got.rootPc, got.quality], `${name} -> ${got.name}`).toEqual([want.rootPc, want.quality]);
+  }
+});
+test("the exact voicing is within the top five", () => {
+  for (const name of TEST_CHORDS) {
+    const names = analyze(chordAudio(name), SR).slice(0, 5).map((c) => c.voicing!.name);
+    expect(names, name).toContain(name);
+  }
+});
+test("chords survive 10 dB noise", () => {
+  for (const name of ["E", "Am", "G", "D", "C", "Em"]) {
+    const c = analyze(chordAudio(name, 10), SR), want = LIB.get(name)!;
+    expect(c[0]?.kind, name).toBe("chord");
+    expect([c[0].voicing!.rootPc, c[0].voicing!.quality], name).toEqual([want.rootPc, want.quality]);
+  }
+});
+// A power chord (root + fifth) is nearly indistinguishable from the matching major shape. Measured over 30 pluck
+// seeds in the Python reference: open E5 gets the right root 30/30 but root+quality only 22/30.
+test("an open power chord gets the right root (its quality is ambiguous)", () => {
+  const c = analyze(chordAudio("E5"), SR);
+  expect(c[0]?.kind).toBe("chord");
+  expect(c[0].voicing!.rootPc).toBe(LIB.get("E5")!.rootPc);
+});
+test("a single note never returns a chord, at either window length", () => {
+  for (const m of [40, 45, 52, 59, 64, 71, 76, 88])
+    for (const n of [NOTE_WINDOW, CHORD_WINDOW]) {
+      const c = analyze(pluck(m).subarray(0, n), SR);
+      expect(c.length, `${m}/${n}`).toBeGreaterThan(0);
+      expect(c.every((x) => x.kind === "note"), `${m}/${n}`).toBe(true);
+    }
+});
+test("chord candidates carry their voicing's midi and a real confidence", () => {
+  const c = analyze(chordAudio("Am"), SR)[0];
+  expect(c.midi).toEqual(voicingMidi(c.voicing!));
+  expect(c.confidence).toBeGreaterThanOrEqual(cfg.minConfidence);
+});
+test("room noise gives no chord", () => {
+  expect(analyze(noise(0.05, 0.2, 5).subarray(0, CHORD_WINDOW), SR)).toEqual([]);
+});
