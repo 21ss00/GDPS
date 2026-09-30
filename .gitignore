@@ -1,0 +1,4 @@
+node_modules/
+dist/
+public/spessasynth_processor.min.js
+public/mediapipe/
