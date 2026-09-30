@@ -1,0 +1,209 @@
+[
+ {
+  "name": "pluck_e2",
+  "file": "pluck_e2.f32",
+  "events": [
+   {
+    "kind": "note",
+    "midi": [
+     40
+    ],
+    "name": "E2",
+    "t": 0.5572789115646258
+   }
+  ]
+ },
+ {
+  "name": "pluck_e3",
+  "file": "pluck_e3.f32",
+  "events": [
+   {
+    "kind": "note",
+    "midi": [
+     52
+    ],
+    "name": "E3",
+    "t": 0.5572789115646258
+   }
+  ]
+ },
+ {
+  "name": "pluck_e5",
+  "file": "pluck_e5.f32",
+  "events": [
+   {
+    "kind": "note",
+    "midi": [
+     76
+    ],
+    "name": "E5",
+    "t": 0.5572789115646258
+   }
+  ]
+ },
+ {
+  "name": "pluck_e3_noisy",
+  "file": "pluck_e3_noisy.f32",
+  "events": [
+   {
+    "kind": "note",
+    "midi": [
+     52
+    ],
+    "name": "E3",
+    "t": 0.5572789115646258
+   }
+  ]
+ },
+ {
+  "name": "strum_em",
+  "file": "strum_em.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     40,
+     47,
+     52,
+     55,
+     59,
+     64
+    ],
+    "name": "Em",
+    "t": 0.6849886621315193
+   }
+  ]
+ },
+ {
+  "name": "strum_g",
+  "file": "strum_g.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     43,
+     47,
+     50,
+     55,
+     59,
+     67
+    ],
+    "name": "G",
+    "t": 0.6849886621315193
+   }
+  ]
+ },
+ {
+  "name": "strum_am",
+  "file": "strum_am.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     45,
+     52,
+     57,
+     60,
+     64
+    ],
+    "name": "Am",
+    "t": 0.6849886621315193
+   }
+  ]
+ },
+ {
+  "name": "strum_f_barre",
+  "file": "strum_f_barre.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     41,
+     48,
+     53,
+     57,
+     60,
+     65
+    ],
+    "name": "F@1",
+    "t": 0.6849886621315193
+   }
+  ]
+ },
+ {
+  "name": "two_plucks",
+  "file": "two_plucks.f32",
+  "events": [
+   {
+    "kind": "note",
+    "midi": [
+     52
+    ],
+    "name": "E3",
+    "t": 0.34829931972789113
+   },
+   {
+    "kind": "note",
+    "midi": [
+     59
+    ],
+    "name": "B3",
+    "t": 0.8591383219954648
+   }
+  ]
+ },
+ {
+  "name": "two_strums",
+  "file": "two_strums.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     40,
+     47,
+     52,
+     56,
+     59,
+     64
+    ],
+    "name": "E",
+    "t": 0.47600907029478456
+   },
+   {
+    "kind": "chord",
+    "midi": [
+     45,
+     52,
+     57,
+     61,
+     64
+    ],
+    "name": "A",
+    "t": 0.8823582766439909
+   }
+  ]
+ },
+ {
+  "name": "rapid_restrum",
+  "file": "rapid_restrum.f32",
+  "events": [
+   {
+    "kind": "chord",
+    "midi": [
+     45,
+     52,
+     57,
+     61,
+     64
+    ],
+    "name": "A",
+    "t": 0.603718820861678
+   }
+  ]
+ },
+ {
+  "name": "silence",
+  "file": "silence.f32",
+  "events": []
+ }
+]
