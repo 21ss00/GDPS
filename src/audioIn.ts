@@ -3,7 +3,22 @@ import { BLOCK_SIZE, SAMPLE_RATE } from "./config";
 // public/capture-processor.js is hard-wired to 512-sample blocks; fail loudly if the two ever drift apart.
 if (BLOCK_SIZE !== 512) throw new Error("capture-processor.js is hard-wired to 512-sample blocks");
 
-export class MicError extends Error {}
+export type MicErrorCode = "permission" | "device" | "capture-setup" | "other";
+
+export class MicError extends Error {
+  constructor(message: string, readonly code: MicErrorCode = "other") { super(message); }
+}
+
+export interface SupportEnv { secure: boolean; hasMediaDevices: boolean; hasAudioWorklet: boolean; hasAudioContext: boolean }
+
+/** A message explaining why this page cannot work here, or null if the browser is capable. */
+export function checkSupport(env: SupportEnv): string | null {
+  if (!env.secure) return "This page needs a secure (https) connection to use the microphone.";
+  if (!env.hasMediaDevices) return "This browser can't access the microphone. Try a current version of Chrome, Edge or Firefox.";
+  if (!env.hasAudioContext || !env.hasAudioWorklet)
+    return "This browser doesn't support the audio features this page needs. Try a current version of Chrome, Edge or Firefox.";
+  return null;
+}
 
 export function friendlyMicError(e: unknown): string {
   const name = (e as { name?: string } | null)?.name ?? "";
@@ -36,7 +51,7 @@ export async function startMic(
   ctx: AudioContext,
   deviceId: string | undefined,
   onBlock: (b: Float32Array) => void,
-): Promise<{ stop(): void; label: string; inputLatencyMs: number }> {
+): Promise<{ stop(): void; label: string; inputLatencyMs: number; deviceId?: string }> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -46,7 +61,8 @@ export async function startMic(
       },
     });
   } catch (e) {
-    throw new MicError(friendlyMicError(e));
+    const name = (e as { name?: string } | null)?.name ?? "";
+    throw new MicError(friendlyMicError(e), name === "NotAllowedError" || name === "SecurityError" ? "permission" : "device");
   }
   try {
     await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}capture-processor.js`);
@@ -61,10 +77,11 @@ export async function startMic(
     return {
       label: track?.label ?? "microphone",
       inputLatencyMs: latency * 1000,
+      deviceId: (track?.getSettings?.() as { deviceId?: string } | undefined)?.deviceId,
       stop() { node.port.onmessage = null; source.disconnect(); node.disconnect(); stream.getTracks().forEach((t) => t.stop()); },
     };
   } catch (e) {
     stream.getTracks().forEach((t) => t.stop());
-    throw new MicError(`Could not start audio capture: ${(e as Error).message}`);
+    throw new MicError(`Could not start audio capture: ${(e as Error).message}`, "capture-setup");
   }
 }

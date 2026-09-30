@@ -33,3 +33,18 @@ test("startMic asks for raw, unprocessed audio", async () => {
   const audio = (gum.mock.calls[0] as unknown as [{ audio: Record<string, unknown> }])[0].audio;
   expect(audio).toMatchObject({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1, deviceId: { exact: "abc" } });
 });
+
+import { checkSupport } from "../src/audioIn";
+
+const ok = { secure: true, hasMediaDevices: true, hasAudioWorklet: true, hasAudioContext: true };
+test("a capable browser has no support message", () => expect(checkSupport(ok)).toBeNull());
+test("each missing capability gets a specific message", () => {
+  expect(checkSupport({ ...ok, secure: false })).toMatch(/https|secure/i);
+  expect(checkSupport({ ...ok, hasMediaDevices: false })).toMatch(/microphone/i);
+  expect(checkSupport({ ...ok, hasAudioWorklet: false })).toMatch(/Chrome|Edge|Firefox|browser/i);
+  expect(checkSupport({ ...ok, hasAudioContext: false })).toMatch(/Chrome|Edge|Firefox|browser/i);
+});
+test("MicError carries a code so callers can tell failures apart", () => {
+  expect(new MicError("x", "capture-setup").code).toBe("capture-setup");
+  expect(new MicError("x").code).toBe("other");
+});

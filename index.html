@@ -14,7 +14,7 @@
     button, select { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--accent); background:transparent; color:var(--fg); }
     button.primary { background:var(--accent); color:#fff; } button:disabled { opacity:.5; }
     canvas { width:100%; aspect-ratio:4/3; background:#000; border-radius:10px; display:block; }
-    #status { min-height:1.5em; color:var(--dim); } #status.err { color:var(--bad); }
+    #status { min-height:1.5em; color:var(--dim); } #status.err, #warn { color:var(--bad); }
     .note { font-size:.9rem; color:var(--dim); }
   </style>
 </head>
@@ -35,6 +35,7 @@
     <span class="note">then on the 12th fret &rarr;</span>
     <button id="f12" disabled>Mark 12th fret</button>
   </div>
+  <div id="warn" role="alert" hidden></div>
   <div id="status" role="status"></div>
   <canvas id="view" width="640" height="480"></canvas>
   <video id="cam-video" playsinline muted hidden></video>

@@ -1,79 +1,90 @@
-import { MicError, checkSampleRate, listInputs, startMic } from "./audioIn";
-import { BLOCK_SIZE, SAMPLE_RATE } from "./config";
-import { rms } from "./dsp";
-import { Engine } from "./engine";
-import type { Event } from "./fusion";
-import { Performer } from "./performer";
-import { SynthError, createWebSynth, type WebSynth } from "./synth";
+import { MicError, checkSupport, listInputs, startMic } from "./audioIn";
+import { Session } from "./session";
+import { SynthError, createWebSynth } from "./synth";
 import { drawOverlay, type ViewState } from "./ui";
 import { VisionTracker } from "./vision";
 import { FretMap, NO_HAND } from "./vision-core";
+import { SAMPLE_RATE } from "./config";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const statusEl = $("status"), canvas = $<HTMLCanvasElement>("view"), video = $<HTMLVideoElement>("cam-video");
+const statusEl = $("status"), warnEl = $("warn"), canvas = $<HTMLCanvasElement>("view"), video = $<HTMLVideoElement>("cam-video");
 const startBtn = $<HTMLButtonElement>("start"), testBtn = $<HTMLButtonElement>("test");
 const nutBtn = $<HTMLButtonElement>("nut"), f12Btn = $<HTMLButtonElement>("f12");
 const micSel = $<HTMLSelectElement>("mic"), outSel = $<HTMLSelectElement>("out"), camBox = $<HTMLInputElement>("cam");
 
-const view: ViewState = { prior: NO_HAND, event: null, latencyMs: null, level: 0, status: "" };
+const view: ViewState = { prior: NO_HAND, event: null, latencyMs: null, level: 0, status: "", audioPathMs: null };
 const fretMap = new FretMap();
-let synth: WebSynth | null = null, ctx: AudioContext | null = null, nutX: number | null = null;
+let nutX: number | null = null, cameraStarted = false, listening = false;
 
 function say(text: string, isError = false): void { statusEl.textContent = text; statusEl.className = isError ? "err" : ""; }
+function warn(text: string | null): void { warnEl.textContent = text ?? ""; warnEl.hidden = !text; }
 function loop(): void { drawOverlay(canvas, video.srcObject ? video : null, view); requestAnimationFrame(loop); }
 
-async function refreshMics(): Promise<void> {
+const session = new Session(
+  {
+    createContext: async (rate) => {
+      const opts = { latencyHint: "interactive" as const };
+      try { return new AudioContext(rate ? { ...opts, sampleRate: rate } : opts); } catch { return new AudioContext(opts); }
+    },
+    createSynth: (ctx) => createWebSynth(ctx as AudioContext, `${import.meta.env.BASE_URL}soundfont/guitar.sf2`),
+    startMic: (ctx, deviceId, onBlock) => startMic(ctx as AudioContext, deviceId, onBlock),
+  },
+  {
+    onEvent: (event, ms) => { view.event = event; view.latencyMs = ms; },
+    onLevel: (level) => { view.level = level; },
+    getPrior: () => view.prior,
+  },
+);
+
+async function fillMics(selectedId?: string): Promise<void> {
   try {
     const inputs = await listInputs();
-    const keep = micSel.value;
     micSel.replaceChildren(...inputs.map((d) => Object.assign(document.createElement("option"), { value: d.deviceId, textContent: d.label })));
-    if (keep) micSel.value = keep;
-    // default to the webcam mic if the user has one, as on the desktop app
-    const w1 = inputs.find((d) => /w1/i.test(d.label));
-    if (w1 && !keep) micSel.value = w1.deviceId;
-  } catch { /* labels need permission; the list refreshes after Start */ }
+    if (selectedId && inputs.some((d) => d.deviceId === selectedId)) micSel.value = selectedId;
+  } catch { /* labels need permission; the list is refreshed once capture starts */ }
+}
+
+async function fillOutputs(ctx: AudioContext): Promise<void> {
+  if (!("setSinkId" in AudioContext.prototype)) return;
+  const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput");
+  outSel.replaceChildren(...outs.map((d) => Object.assign(document.createElement("option"), { value: d.deviceId, textContent: d.label || "Speakers" })));
+  $("outwrap").hidden = outs.length < 2;
+  outSel.onchange = () => (ctx as unknown as { setSinkId(id: string): Promise<void> }).setSinkId(outSel.value)
+    .catch((e: Error) => say(`Could not switch output: ${e.message}`, true));
 }
 
 async function start(): Promise<void> {
   startBtn.disabled = true;
+  warn(null);
   try {
     say("Loading the guitar sound…");
-    ctx = new AudioContext({ sampleRate: SAMPLE_RATE, latencyHint: "interactive" });
-    await ctx.resume();
-    const rateWarning = checkSampleRate(ctx);
-    synth = await createWebSynth(ctx, `${import.meta.env.BASE_URL}soundfont/guitar.sf2`);
-    testBtn.disabled = false;
-
-    if ("setSinkId" in AudioContext.prototype) {
-      const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput");
-      outSel.replaceChildren(...outs.map((d) => Object.assign(document.createElement("option"), { value: d.deviceId, textContent: d.label || "Speakers" })));
-      $("outwrap").hidden = outs.length < 2;
-      outSel.onchange = () => (ctx as unknown as { setSinkId(id: string): Promise<void> }).setSinkId(outSel.value).catch((e) => say(`Could not switch output: ${e.message}`, true));
-    }
-
-    const engine = new Engine(SAMPLE_RATE, BLOCK_SIZE, () => view.prior);
-    const performer = new Performer(synth, { speakerMode: false });
-    const dt = BLOCK_SIZE / SAMPLE_RATE;
-    const mic = await startMic(ctx, micSel.value || undefined, (block) => {
-      const level = rms(block);
-      view.level = level;
-      for (const event of engine.process(block)) {
-        if (performer.handle(event, performance.now() / 1000)) { view.event = event as Event; view.latencyMs = (engine.lastLatencyS ?? 0) * 1000; }
-      }
-      performer.tick(level, dt);
-    });
-    await refreshMics();
-    say(rateWarning ?? `Listening on: ${mic.label}. Play something.`, rateWarning !== null);
-
-    if (camBox.checked) await startCamera();
+    await session.prepare(SAMPLE_RATE);
+    testBtn.disabled = false; // the synth is usable even if the microphone then fails
+    const { label, rateWarning, deviceId } = await session.startListening(micSel.value || undefined);
+    listening = true;
+    await fillMics(deviceId);
+    await fillOutputs(session.audioContext as AudioContext).catch(() => {}); // the output picker is a convenience
+    warn(rateWarning);
+    say(`Listening on: ${label}. Play something.`);
+    if (camBox.checked && !cameraStarted) await startCamera();
   } catch (e) {
-    const msg = e instanceof MicError || e instanceof SynthError ? e.message : `Something went wrong: ${(e as Error).message}`;
-    say(msg, true);
-    startBtn.disabled = false; // let the user fix it and try again
+    say(e instanceof MicError || e instanceof SynthError ? e.message : `Something went wrong: ${(e as Error).message}`, true);
+    startBtn.disabled = false; // let the user fix it and try again; what already loaded is reused
   }
 }
 
+micSel.onchange = async () => {
+  if (!listening) return; // before Start the list has no real device ids yet
+  try {
+    const mic = await session.switchMic(micSel.value);
+    say(`Listening on: ${mic.label}. Play something.`);
+  } catch (e) {
+    say(e instanceof MicError ? e.message : `Could not switch microphone: ${(e as Error).message}`, true);
+  }
+};
+
 async function startCamera(): Promise<void> {
+  cameraStarted = true;
   try {
     video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     await video.play();
@@ -97,10 +108,20 @@ f12Btn.onclick = () => {
   try { fretMap.calibrate(nutX, x); say("Calibrated."); } catch (e) { say((e as Error).message, true); }
 };
 testBtn.onclick = () => {
-  synth?.playChord([40, 47, 52, 55, 59, 64]); // E minor strum
-  setTimeout(() => synth?.stopAll(), 2500);
+  session.synthHandle?.playChord([40, 47, 52, 55, 59, 64]); // E minor strum
+  setTimeout(() => session.synthHandle?.stopAll(), 2500);
 };
 startBtn.onclick = () => void start();
+window.addEventListener("pagehide", () => void session.stop());
 
-void refreshMics();
+setInterval(() => { view.audioPathMs = listening ? session.audioPathMs : null; }, 500);
+
+const unsupported = checkSupport({
+  secure: window.isSecureContext,
+  hasMediaDevices: !!navigator.mediaDevices?.getUserMedia,
+  hasAudioWorklet: typeof AudioWorkletNode !== "undefined",
+  hasAudioContext: typeof AudioContext !== "undefined",
+});
+if (unsupported) { warn(unsupported); startBtn.disabled = true; }
+void fillMics();
 loop();

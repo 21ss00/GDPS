@@ -1,11 +1,19 @@
-import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { NO_HAND, type FretMap, type HandPrior } from "./vision-core";
 
 const INDEX_FINGERTIP = 8;
 
+/** The part of MediaPipe's HandLandmarker this class needs (lets tests pass a fake). */
+export interface LandmarkerLike {
+  detectForVideo(video: HTMLVideoElement, timestampMs: number): { landmarks: { x: number; y: number }[][] };
+  close(): void;
+}
+
 export class VisionTracker {
   private lastTs = -1;
-  private constructor(private video: HTMLVideoElement, private landmarker: HandLandmarker, private fretMap: FretMap) {}
+  private lastVideoTime = -1;
+  private lastPrior: HandPrior = NO_HAND;
+
+  constructor(private video: HTMLVideoElement, private landmarker: LandmarkerLike, private fretMap: FretMap) {}
 
   static async create(video: HTMLVideoElement, fretMap: FretMap): Promise<VisionTracker | { error: string }> {
     try {
@@ -23,15 +31,25 @@ export class VisionTracker {
     }
   }
 
-  /** The fretting hand is the one whose index fingertip is nearest the nut. */
+  /**
+   * The fretting hand is the one whose index fingertip is nearest the nut.
+   * Called every animation frame, but the camera delivers ~30 fps: an unchanged video frame
+   * returns the previous result instead of running the model again.
+   */
   update(nowMs: number): HandPrior {
     try {
-      if (this.video.readyState < 2 || nowMs <= this.lastTs) return NO_HAND;
+      if (this.video.readyState < 2) return NO_HAND;
+      if (this.video.currentTime === this.lastVideoTime || nowMs <= this.lastTs) return this.lastPrior;
+      this.lastVideoTime = this.video.currentTime;
       this.lastTs = nowMs;
       const hands = this.landmarker.detectForVideo(this.video, nowMs).landmarks;
-      if (!hands.length) return NO_HAND;
+      if (!hands.length) return (this.lastPrior = NO_HAND);
       const best = hands.reduce((a, b) => (this.fretMap.fretAt(a[INDEX_FINGERTIP].x) <= this.fretMap.fretAt(b[INDEX_FINGERTIP].x) ? a : b));
-      return { present: true, fret: this.fretMap.fretAt(best[INDEX_FINGERTIP].x), landmarks: best.map((p) => [p.x, p.y] as [number, number]) };
+      return (this.lastPrior = {
+        present: true,
+        fret: this.fretMap.fretAt(best[INDEX_FINGERTIP].x),
+        landmarks: best.map((p) => [p.x, p.y] as [number, number]),
+      });
     } catch {
       return NO_HAND;
     }

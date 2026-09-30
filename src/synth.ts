@@ -53,6 +53,7 @@ export async function createWebSynth(ctx: AudioContext, sfUrl: string): Promise<
   try {
     await ctx.audioWorklet.addModule(`${import.meta.env.BASE_URL}spessasynth_processor.min.js`);
     const synth = new WorkletSynthesizer(ctx);
+    synth.connect(ctx.destination); // the library does not connect its output itself: without this the site is silent
     await synth.soundBankManager.addSoundBank(sf, "guitar");
     await synth.isReady;
     synth.programChange(CHANNEL, 0);

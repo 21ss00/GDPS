@@ -1,7 +1,7 @@
 import type { Event } from "./fusion";
 import type { HandPrior } from "./vision-core";
 
-export interface ViewState { prior: HandPrior; event: Event | null; latencyMs: number | null; level: number; status: string }
+export interface ViewState { prior: HandPrior; event: Event | null; latencyMs: number | null; level: number; status: string; audioPathMs: number | null }
 
 const LATENCY_BUDGET_MS = { note: 80, chord: 250 };
 
@@ -24,6 +24,7 @@ export function drawOverlay(canvas: HTMLCanvasElement, video: HTMLVideoElement |
     g.fillStyle = v.latencyMs <= budget ? "#5ad88a" : "#ff6b6b";
     g.fillText(`decision ${v.latencyMs.toFixed(0)} ms`, 14, 98);
   }
+  if (v.audioPathMs !== null) { g.fillStyle = "#ddd"; g.fillText(`browser audio path ~${v.audioPathMs.toFixed(0)} ms`, 14, 120); }
   g.fillStyle = "#ddd";
   g.fillText(v.prior.present ? `hand: fret ~${v.prior.fret === null ? "?" : v.prior.fret.toFixed(1)}` : "no hand - audio only", 14, h - 34);
   g.strokeStyle = "#888"; g.strokeRect(10, h - 26, w - 20, 10);
