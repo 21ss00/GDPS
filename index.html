@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guitar Synth</title>
+  <style>
+    :root { --bg:#14121a; --fg:#ece8f5; --dim:#9a93ad; --accent:#7c5cff; --ok:#5ad88a; --bad:#ff6b6b; }
+    @media (prefers-color-scheme: light) { :root { --bg:#f6f4fb; --fg:#1b1730; --dim:#5d5675; } }
+    body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+    main { max-width:820px; margin:0 auto; padding:16px; }
+    h1 { margin:8px 0 4px; font-size:1.6rem; } p { color:var(--dim); margin:4px 0 12px; }
+    .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0; }
+    button, select { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--accent); background:transparent; color:var(--fg); }
+    button.primary { background:var(--accent); color:#fff; } button:disabled { opacity:.5; }
+    canvas { width:100%; aspect-ratio:4/3; background:#000; border-radius:10px; display:block; }
+    #status { min-height:1.5em; color:var(--dim); } #status.err { color:var(--bad); }
+    .note { font-size:.9rem; color:var(--dim); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Guitar Synth</h1>
+  <p>Play your acoustic guitar near the microphone and hear it as a clean electric guitar. <strong>Use headphones</strong> so the microphone doesn't hear the synth.</p>
+  <div class="bar">
+    <button id="start" class="primary">Start</button>
+    <button id="test" disabled>Test sound</button>
+    <label>Microphone <select id="mic"></select></label>
+    <label id="outwrap" hidden>Output <select id="out"></select></label>
+    <label><input type="checkbox" id="cam" checked /> Use camera</label>
+  </div>
+  <div class="bar">
+    <span class="note">Calibrate (optional, hand in view): put your index finger on the nut &rarr;</span>
+    <button id="nut" disabled>Mark nut</button>
+    <span class="note">then on the 12th fret &rarr;</span>
+    <button id="f12" disabled>Mark 12th fret</button>
+  </div>
+  <div id="status" role="status"></div>
+  <canvas id="view" width="640" height="480"></canvas>
+  <video id="cam-video" playsinline muted hidden></video>
+  <p class="note">Runs entirely in your browser; no audio or video leaves your device. Guitar sound: FreePats "FSBS Electric Guitar Clean #1" (Creative Commons CC0). Detects single notes and common chords in standard tuning (E A D G B E).</p>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
